@@ -1,5 +1,5 @@
 /* ==========================================================================
-   MediFlow Patient Registration - Pure Supabase Data & Vapi SDK
+   MediFlow Patient Registration - Pure Supabase Data & Vapi SDK Integration
    ========================================================================== */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -29,7 +29,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function switchView(viewName) {
     currentView = viewName;
 
-    // Update Nav active styling
     navItems.forEach(item => {
       if (item.getAttribute("data-view") === viewName) {
         item.classList.add("active");
@@ -38,7 +37,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Update Pages active visibility
     viewPages.forEach(page => {
       if (page.id === `view-${viewName}`) {
         page.classList.add("active");
@@ -47,12 +45,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Update Header title
     if (headerPageTitle) {
       headerPageTitle.textContent = viewTitles[viewName] || "Dashboard Overview";
     }
 
-    // Refresh Lucide Icons after view render
     if (window.lucide) {
       window.lucide.createIcons();
     }
@@ -183,7 +179,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     tbody.innerHTML = "";
 
-    // Update Dashboard Metrics with real DB counts
     const statTotal = document.getElementById("stat-total");
     if (statTotal) statTotal.textContent = apiPatients.length.toLocaleString();
 
@@ -269,7 +264,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Display top 5 recent entries
     apiPatients.slice(0, 5).forEach(p => {
       const item = document.createElement("div");
       item.className = "activity-item";
@@ -329,7 +323,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const voiceTranscriptContainer = document.getElementById("voice-transcript-container");
   const btnConfirmRegister = document.getElementById("btn-confirm-register");
   const callTimerSub = document.querySelector(".call-timer-sub");
-  const waveformBars = document.querySelector(".waveform-bars");
 
   let vapi = null;
   let vapiConfig = { publicKey: "", assistantId: "82785e26-f1f2-4197-9ada-acc76c0bce46" };
@@ -337,33 +330,44 @@ document.addEventListener("DOMContentLoaded", () => {
   let callTimerInterval = null;
   let callSeconds = 0;
 
-  async function initVapiSDK() {
+  async function fetchVapiPublicKey() {
+    // 1. Check localStorage key override
+    const localKey = localStorage.getItem("vapi_public_key");
+    if (localKey && localKey.trim() && localKey !== "your_vapi_public_key" && !localKey.includes("your_")) {
+      return localKey.trim();
+    }
+
+    // 2. Fetch from backend /api/config/vapi
     try {
       const res = await fetch("/api/config/vapi");
       if (res.ok) {
         const data = await res.json();
-        if (data.publicKey) vapiConfig.publicKey = data.publicKey;
+        if (data.publicKey && data.publicKey !== "your_vapi_public_key" && !data.publicKey.includes("your_")) {
+          return data.publicKey.trim();
+        }
         if (data.assistantId) vapiConfig.assistantId = data.assistantId;
       }
     } catch (err) {
-      console.warn("Could not fetch Vapi config from server endpoint:", err);
+      console.warn("Could not fetch Vapi config from endpoint:", err);
     }
 
-    if (vapiConfig.publicKey) {
+    return "";
+  }
+
+  async function initVapiSDK() {
+    const key = await fetchVapiPublicKey();
+    if (key) {
+      vapiConfig.publicKey = key;
       try {
         const VapiClass = window.vapiSDK?.Vapi || window.Vapi;
         if (VapiClass) {
           vapi = new VapiClass(vapiConfig.publicKey);
           setupVapiListeners();
           console.log("Vapi Web SDK successfully initialized with Assistant ID:", vapiConfig.assistantId);
-        } else {
-          console.warn("Vapi Web SDK library not found on window object.");
         }
       } catch (err) {
         console.error("Error initializing Vapi Web SDK:", err);
       }
-    } else {
-      console.info("Vapi Public Key not yet set in environment variables.");
     }
   }
 
@@ -495,39 +499,46 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Re-check or fetch config if not yet loaded
+      // Check key
       if (!vapiConfig.publicKey) {
-        try {
-          const res = await fetch("/api/config/vapi");
-          if (res.ok) {
-            const data = await res.json();
-            if (data.publicKey) vapiConfig.publicKey = data.publicKey;
-            if (data.assistantId) vapiConfig.assistantId = data.assistantId;
-          }
-        } catch (e) {}
+        vapiConfig.publicKey = await fetchVapiPublicKey();
+      }
 
-        if (vapiConfig.publicKey && !vapi) {
+      // If key is still missing (e.g. Vercel deployment protection), prompt once and save locally!
+      if (!vapiConfig.publicKey) {
+        const userEnteredKey = prompt(
+          "🔑 Enter your Vapi Public Key to connect live voice calls:\n\n(Find this in Vapi Dashboard -> Account -> API Keys -> Public Key)"
+        );
+        if (userEnteredKey && userEnteredKey.trim()) {
+          vapiConfig.publicKey = userEnteredKey.trim();
+          localStorage.setItem("vapi_public_key", vapiConfig.publicKey);
+        }
+      }
+
+      if (vapiConfig.publicKey) {
+        if (!vapi) {
           const VapiClass = window.vapiSDK?.Vapi || window.Vapi;
           if (VapiClass) {
             vapi = new VapiClass(vapiConfig.publicKey);
             setupVapiListeners();
           }
         }
-      }
 
-      if (vapi && vapiConfig.publicKey) {
-        try {
-          console.log("Starting Vapi call with Assistant ID:", vapiConfig.assistantId);
-          await vapi.start(vapiConfig.assistantId);
-        } catch (err) {
-          console.error("Failed to start Vapi call:", err);
-          alert("Vapi Call Error: " + (err.message || JSON.stringify(err)));
-          updateVapiUIState("error");
+        if (vapi) {
+          try {
+            console.log("Starting Vapi call with Assistant ID:", vapiConfig.assistantId);
+            await vapi.start(vapiConfig.assistantId);
+          } catch (err) {
+            console.error("Failed to start Vapi call:", err);
+            alert("Vapi Call Error: " + (err.message || JSON.stringify(err)));
+            updateVapiUIState("error");
+          }
+        } else {
+          alert("Vapi Web SDK is initializing. Please click the mic button again in a moment.");
+          updateVapiUIState("ended");
         }
       } else {
-        const errorMsg = "VAPI_PUBLIC_KEY is not configured in Vercel Environment Variables. Please set VAPI_PUBLIC_KEY or VITE_VAPI_PUBLIC_KEY in Vercel project settings.";
-        console.error(errorMsg, { vapiConfig });
-        alert(errorMsg);
+        alert("VAPI_PUBLIC_KEY is required to start live browser calls.");
         updateVapiUIState("ended");
       }
     }
@@ -606,16 +617,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const payload = {
         first_name: name[0] || "Voice",
         last_name: name.slice(1).join(" ") || "Patient",
-        date_of_birth: document.getElementById("extract-dob").textContent !== "Awaiting..." ? document.getElementById("extract-dob").textContent : "2000-01-01",
+        date_of_birth: document.getElementById("extract-dob").textContent !== "Awaiting AI extraction..." ? document.getElementById("extract-dob").textContent : "2000-01-01",
         sex: "Male",
-        phone_number: "03004928810",
+        phone_number: "13463591511",
         email: "voice.patient@example.com",
         address_line_1: "123 Medical Way",
         city: "Wah Cantt",
         state: "NY",
         zip_code: "10001",
         insurance_provider: "BlueCross HealthShield",
-        emergency_contact_phone: "03009876543"
+        emergency_contact_phone: "13463591511"
       };
 
       try {
