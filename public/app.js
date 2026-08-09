@@ -333,7 +333,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let callTimerInterval = null;
   let callSeconds = 0;
 
-  // Constructor detection across local bundled vapi.sdk.js and global exports
+  // Active transcript bubble pointers for in-place streaming updates
+  let activeBotBubble = null;
+  let activeUserBubble = null;
+
   function getVapiConstructor() {
     if (typeof window.Vapi === "function") return window.Vapi;
     if (window.Vapi && typeof window.Vapi.default === "function") return window.Vapi.default;
@@ -391,6 +394,8 @@ document.addEventListener("DOMContentLoaded", () => {
     vapi.on("call-start", () => {
       console.log("Vapi Call Started Successfully");
       isVapiCallActive = true;
+      activeBotBubble = null;
+      activeUserBubble = null;
       startCallTimer();
       updateVapiUIState("active");
     });
@@ -398,6 +403,8 @@ document.addEventListener("DOMContentLoaded", () => {
     vapi.on("call-end", () => {
       console.log("Vapi Call Ended");
       isVapiCallActive = false;
+      activeBotBubble = null;
+      activeUserBubble = null;
       stopCallTimer();
       updateVapiUIState("ended");
       fetchPatients();
@@ -421,10 +428,13 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("Vapi Message Event:", msg);
 
       if (msg.type === "transcript" && msg.transcript) {
+        const isFinal = msg.transcriptType === "final";
         if (msg.role === "user") {
-          appendUserBubble(msg.transcript);
+          activeBotBubble = null;
+          updateUserSpeech(msg.transcript, isFinal);
         } else if (msg.role === "assistant") {
-          appendBotBubble(msg.transcript);
+          activeUserBubble = null;
+          updateBotSpeech(msg.transcript, isFinal);
         }
       }
 
@@ -441,6 +451,48 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Vapi Error: " + (e.message || JSON.stringify(e)));
       updateVapiUIState("error");
     });
+  }
+
+  function updateBotSpeech(text, isFinal = false) {
+    if (!activeBotBubble) {
+      const row = document.createElement("div");
+      row.className = "chat-bubble-row";
+      row.innerHTML = `
+        <div class="avatar-icon-circle bot"><i data-lucide="bot"></i></div>
+        <div class="chat-bubble bot-bubble"></div>
+      `;
+      voiceTranscriptContainer.appendChild(row);
+      activeBotBubble = row.querySelector(".chat-bubble");
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    activeBotBubble.textContent = text;
+    voiceTranscriptContainer.scrollTop = voiceTranscriptContainer.scrollHeight;
+
+    if (isFinal) {
+      activeBotBubble = null;
+    }
+  }
+
+  function updateUserSpeech(text, isFinal = false) {
+    if (!activeUserBubble) {
+      const row = document.createElement("div");
+      row.className = "chat-bubble-row user-row";
+      row.innerHTML = `
+        <div class="avatar-icon-circle user"><i data-lucide="user"></i></div>
+        <div class="chat-bubble user-bubble"></div>
+      `;
+      voiceTranscriptContainer.appendChild(row);
+      activeUserBubble = row.querySelector(".chat-bubble");
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    activeUserBubble.textContent = text;
+    voiceTranscriptContainer.scrollTop = voiceTranscriptContainer.scrollHeight;
+
+    if (isFinal) {
+      activeUserBubble = null;
+    }
   }
 
   function startCallTimer() {
@@ -561,30 +613,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     updateExtractionProgress(5);
     if (btnConfirmRegister) btnConfirmRegister.classList.add("ready");
-  }
-
-  function appendBotBubble(text) {
-    const row = document.createElement("div");
-    row.className = "chat-bubble-row";
-    row.innerHTML = `
-      <div class="avatar-icon-circle bot"><i data-lucide="bot"></i></div>
-      <div class="chat-bubble bot-bubble">${text}</div>
-    `;
-    voiceTranscriptContainer.appendChild(row);
-    voiceTranscriptContainer.scrollTop = voiceTranscriptContainer.scrollHeight;
-    if (window.lucide) window.lucide.createIcons();
-  }
-
-  function appendUserBubble(text) {
-    const row = document.createElement("div");
-    row.className = "chat-bubble-row user-row";
-    row.innerHTML = `
-      <div class="avatar-icon-circle user"><i data-lucide="user"></i></div>
-      <div class="chat-bubble user-bubble">${text}</div>
-    `;
-    voiceTranscriptContainer.appendChild(row);
-    voiceTranscriptContainer.scrollTop = voiceTranscriptContainer.scrollHeight;
-    if (window.lucide) window.lucide.createIcons();
   }
 
   function updateExtractionProgress(count) {
