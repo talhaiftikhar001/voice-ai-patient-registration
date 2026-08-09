@@ -325,19 +325,30 @@ document.addEventListener("DOMContentLoaded", () => {
   const callTimerSub = document.querySelector(".call-timer-sub");
 
   let vapi = null;
-  let vapiConfig = { publicKey: "12e72b37-fa3f-4bfd-8756-28c7a0a796b2", assistantId: "82785e26-f1f2-4197-9ada-acc76c0bce46" };
+  let vapiConfig = {
+    publicKey: "12e72b37-fa3f-4bfd-8756-28c7a0a796b2",
+    assistantId: "82785e26-f1f2-4197-9ada-acc76c0bce46"
+  };
   let isVapiCallActive = false;
   let callTimerInterval = null;
   let callSeconds = 0;
 
+  // Detect constructor across all CDN bundle export variations
+  function getVapiConstructor() {
+    if (typeof window.Vapi === "function") return window.Vapi;
+    if (typeof window.vapiSDK === "function") return window.vapiSDK;
+    if (window.vapiSDK && typeof window.vapiSDK.Vapi === "function") return window.vapiSDK.Vapi;
+    if (window.vapiSDK && typeof window.vapiSDK.default === "function") return window.vapiSDK.default;
+    if (window.Vapi && typeof window.Vapi.default === "function") return window.Vapi.default;
+    return null;
+  }
+
   async function fetchVapiPublicKey() {
-    // 1. Check localStorage key override
     const localKey = localStorage.getItem("vapi_public_key");
     if (localKey && localKey.trim() && localKey !== "your_vapi_public_key" && !localKey.includes("your_")) {
       return localKey.trim();
     }
 
-    // 2. Fetch from backend /api/config/vapi
     try {
       const res = await fetch("/api/config/vapi");
       if (res.ok) {
@@ -348,34 +359,55 @@ document.addEventListener("DOMContentLoaded", () => {
         if (data.assistantId) vapiConfig.assistantId = data.assistantId;
       }
     } catch (err) {
-      console.warn("Could not fetch Vapi config from endpoint:", err);
+      console.warn("Could not fetch Vapi config from API endpoint:", err);
     }
 
     return "12e72b37-fa3f-4bfd-8756-28c7a0a796b2";
   }
 
-  async function initVapiSDK() {
-    const key = await fetchVapiPublicKey();
-    if (key) {
-      vapiConfig.publicKey = key;
-      try {
-        const VapiClass = window.vapiSDK?.Vapi || window.Vapi;
-        if (VapiClass) {
-          vapi = new VapiClass(vapiConfig.publicKey);
-          setupVapiListeners();
-          console.log("Vapi Web SDK successfully initialized with Assistant ID:", vapiConfig.assistantId);
-        }
-      } catch (err) {
-        console.error("Error initializing Vapi Web SDK:", err);
-      }
+  async function getOrInitVapiInstance() {
+    if (vapi) return vapi;
+
+    let VapiConstructor = getVapiConstructor();
+
+    // If CDN bundle not yet parsed, non-blocking wait up to 3 seconds
+    if (!VapiConstructor) {
+      console.warn("Vapi Web SDK script not detected on window. Polling for script load...");
+      await new Promise((resolve) => {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          attempts++;
+          VapiConstructor = getVapiConstructor();
+          if (VapiConstructor || attempts >= 30) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 100);
+      });
     }
+
+    VapiConstructor = getVapiConstructor();
+
+    if (!VapiConstructor) {
+      const errorMsg = "Vapi Web SDK (vapi.js) failed to load from CDN. Please check ad-blockers or browser security settings.";
+      console.error(errorMsg, { windowVapi: window.Vapi, windowVapiSDK: window.vapiSDK });
+      throw new Error(errorMsg);
+    }
+
+    const key = await fetchVapiPublicKey();
+    vapiConfig.publicKey = key || "12e72b37-fa3f-4bfd-8756-28c7a0a796b2";
+
+    console.log("Initializing Vapi client instance with Public Key:", vapiConfig.publicKey);
+    vapi = new VapiConstructor(vapiConfig.publicKey);
+    setupVapiListeners();
+    return vapi;
   }
 
   function setupVapiListeners() {
     if (!vapi) return;
 
     vapi.on("call-start", () => {
-      console.log("Vapi Call Started");
+      console.log("Vapi Call Started Successfully");
       isVapiCallActive = true;
       startCallTimer();
       updateVapiUIState("active");
@@ -404,7 +436,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     vapi.on("message", (msg) => {
-      console.log("Vapi Message Received:", msg);
+      console.log("Vapi Message Event:", msg);
 
       if (msg.type === "transcript" && msg.transcript) {
         if (msg.role === "user") {
@@ -423,7 +455,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     vapi.on("error", (e) => {
-      console.error("Vapi Call Error Details:", e);
+      console.error("Vapi Call Error Event:", e);
       alert("Vapi Error: " + (e.message || JSON.stringify(e)));
       updateVapiUIState("error");
     });
@@ -481,7 +513,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function toggleVapiVoiceCall() {
     if (isVapiCallActive) {
       if (vapi) {
-        try { vapi.stop(); } catch (e) {}
+        try { vapi.stop(); } catch (e) { console.error("Error stopping call:", e); }
       }
       isVapiCallActive = false;
       stopCallTimer();
@@ -489,7 +521,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       updateVapiUIState("loading");
 
-      // Check mic permission
+      // 1. Request microphone permission
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
@@ -499,47 +531,15 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Check key
-      if (!vapiConfig.publicKey) {
-        vapiConfig.publicKey = await fetchVapiPublicKey();
-      }
-
-      // If key is still missing (e.g. Vercel deployment protection), prompt once and save locally!
-      if (!vapiConfig.publicKey) {
-        const userEnteredKey = prompt(
-          "🔑 Enter your Vapi Public Key to connect live voice calls:\n\n(Find this in Vapi Dashboard -> Account -> API Keys -> Public Key)"
-        );
-        if (userEnteredKey && userEnteredKey.trim()) {
-          vapiConfig.publicKey = userEnteredKey.trim();
-          localStorage.setItem("vapi_public_key", vapiConfig.publicKey);
-        }
-      }
-
-      if (vapiConfig.publicKey) {
-        if (!vapi) {
-          const VapiClass = window.vapiSDK?.Vapi || window.Vapi;
-          if (VapiClass) {
-            vapi = new VapiClass(vapiConfig.publicKey);
-            setupVapiListeners();
-          }
-        }
-
-        if (vapi) {
-          try {
-            console.log("Starting Vapi call with Assistant ID:", vapiConfig.assistantId);
-            await vapi.start(vapiConfig.assistantId);
-          } catch (err) {
-            console.error("Failed to start Vapi call:", err);
-            alert("Vapi Call Error: " + (err.message || JSON.stringify(err)));
-            updateVapiUIState("error");
-          }
-        } else {
-          alert("Vapi Web SDK is initializing. Please click the mic button again in a moment.");
-          updateVapiUIState("ended");
-        }
-      } else {
-        alert("VAPI_PUBLIC_KEY is required to start live browser calls.");
-        updateVapiUIState("ended");
+      // 2. Initialize Vapi & start assistant call
+      try {
+        const vapiClient = await getOrInitVapiInstance();
+        console.log("Starting Vapi assistant call with ID:", vapiConfig.assistantId);
+        await vapiClient.start(vapiConfig.assistantId);
+      } catch (err) {
+        console.error("Failed to start Vapi voice call:", err);
+        alert("Vapi Call Initialization Error: " + (err.message || JSON.stringify(err)));
+        updateVapiUIState("error");
       }
     }
   }
@@ -654,6 +654,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Initialize Vapi SDK and load patients on startup
-  initVapiSDK();
+  getOrInitVapiInstance().catch(e => console.info("Vapi initial auto-load check:", e.message));
   fetchPatients();
 });
