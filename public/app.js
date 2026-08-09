@@ -1,5 +1,5 @@
 /* ==========================================================================
-   MediFlow Patient Registration - Pure Supabase Data & Vapi SDK Integration
+   MediFlow Patient Registration - Pure Supabase Data & Local Vapi SDK
    ========================================================================== */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -333,13 +333,13 @@ document.addEventListener("DOMContentLoaded", () => {
   let callTimerInterval = null;
   let callSeconds = 0;
 
-  // Detect constructor across all CDN bundle export variations
+  // Constructor detection across local bundled vapi.sdk.js and global exports
   function getVapiConstructor() {
     if (typeof window.Vapi === "function") return window.Vapi;
+    if (window.Vapi && typeof window.Vapi.default === "function") return window.Vapi.default;
     if (typeof window.vapiSDK === "function") return window.vapiSDK;
     if (window.vapiSDK && typeof window.vapiSDK.Vapi === "function") return window.vapiSDK.Vapi;
     if (window.vapiSDK && typeof window.vapiSDK.default === "function") return window.vapiSDK.default;
-    if (window.Vapi && typeof window.Vapi.default === "function") return window.Vapi.default;
     return null;
   }
 
@@ -368,28 +368,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function getOrInitVapiInstance() {
     if (vapi) return vapi;
 
-    let VapiConstructor = getVapiConstructor();
-
-    // If CDN bundle not yet parsed, non-blocking wait up to 3 seconds
-    if (!VapiConstructor) {
-      console.warn("Vapi Web SDK script not detected on window. Polling for script load...");
-      await new Promise((resolve) => {
-        let attempts = 0;
-        const interval = setInterval(() => {
-          attempts++;
-          VapiConstructor = getVapiConstructor();
-          if (VapiConstructor || attempts >= 30) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, 100);
-      });
-    }
-
-    VapiConstructor = getVapiConstructor();
+    const VapiConstructor = getVapiConstructor();
 
     if (!VapiConstructor) {
-      const errorMsg = "Vapi Web SDK (vapi.js) failed to load from CDN. Please check ad-blockers or browser security settings.";
+      const errorMsg = "Vapi Web SDK constructor not found. Please ensure vapi.sdk.js is included in index.html.";
       console.error(errorMsg, { windowVapi: window.Vapi, windowVapiSDK: window.vapiSDK });
       throw new Error(errorMsg);
     }
@@ -397,7 +379,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const key = await fetchVapiPublicKey();
     vapiConfig.publicKey = key || "12e72b37-fa3f-4bfd-8756-28c7a0a796b2";
 
-    console.log("Initializing Vapi client instance with Public Key:", vapiConfig.publicKey);
+    console.log("Initializing local Vapi client instance with Public Key:", vapiConfig.publicKey);
     vapi = new VapiConstructor(vapiConfig.publicKey);
     setupVapiListeners();
     return vapi;
@@ -653,7 +635,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Initialize Vapi SDK and load patients on startup
+  // Auto-initialize Vapi SDK client
   getOrInitVapiInstance().catch(e => console.info("Vapi initial auto-load check:", e.message));
   fetchPatients();
 });

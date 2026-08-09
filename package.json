@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "build": "npx esbuild node_modules/@vapi-ai/web/dist/vapi.js --bundle --format=iife --global-name=Vapi --outfile=public/vapi.sdk.js --minify",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -13,8 +14,10 @@
   "type": "commonjs",
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",
+    "@vapi-ai/web": "^2.6.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "esbuild": "^0.28.2",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "uuid": "^14.0.1",
