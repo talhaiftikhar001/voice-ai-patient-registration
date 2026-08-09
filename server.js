@@ -43,8 +43,8 @@ const patientSchema = z.object({
     sex: z.string().optional(),
 
     phone_number: z.string().regex(
-        /^\d{10,11}$/,
-        "Phone number must contain 10 or 11 digits"
+        /^\+?\d{10,15}$/,
+        "Phone number must contain 10 to 15 digits"
     ),
 
     email: z.string().email("Invalid email address").optional().or(z.literal("")),
@@ -69,8 +69,8 @@ const patientSchema = z.object({
     emergency_contact_name: z.string().optional(),
 
     emergency_contact_phone: z.string().regex(
-        /^\d{10,11}$/,
-        "Emergency contact phone must contain 10 or 11 digits"
+        /^\+?\d{10,15}$/,
+        "Emergency contact phone must contain 10 to 15 digits"
     )
 });
 
@@ -103,6 +103,13 @@ app.get("/test-supabase", async (req, res) => {
         success: true,
         message: "Supabase connected successfully",
         data: data
+    });
+});
+
+app.get("/api/config/vapi", (req, res) => {
+    res.json({
+        publicKey: process.env.VAPI_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || process.env.VITE_VAPI_PUBLIC_KEY || "",
+        assistantId: process.env.VAPI_ASSISTANT_ID || "82785e26-f1f2-4197-9ada-acc76c0bce46"
     });
 });
 
@@ -248,23 +255,31 @@ app.post("/vapi/create-patient", async (req, res) => {
                 : req.body.function.arguments;
         }
 
+        // Extract caller phone number from Vapi phone call object if available
+        let callerPhone = "";
+        if (req.body && req.body.message && req.body.message.call) {
+            const callObj = req.body.message.call;
+            callerPhone = callObj.customer?.number || callObj.phoneNumber?.number || "";
+        }
+
         // Clean & normalize phone numbers
-        const rawPhone = String(patientInput.phone_number || patientInput.phone || "03001234567").replace(/\D/g, "");
-        const rawEmergencyPhone = String(patientInput.emergency_contact_phone || patientInput.emergency_phone || "03009876543").replace(/\D/g, "");
+        const inputPhone = patientInput.phone_number || patientInput.phone || callerPhone || "13463591511";
+        const rawPhone = String(inputPhone).replace(/\D/g, "");
+        const rawEmergencyPhone = String(patientInput.emergency_contact_phone || patientInput.emergency_phone || "13463591511").replace(/\D/g, "");
 
         const normalizedInput = {
             first_name: patientInput.first_name || patientInput.firstName || "Patient",
             last_name: patientInput.last_name || patientInput.lastName || "Record",
             date_of_birth: patientInput.date_of_birth || patientInput.dob || "2000-01-01",
             sex: patientInput.sex || "Other",
-            phone_number: rawPhone.length >= 10 ? rawPhone.slice(0, 11) : "03001234567",
+            phone_number: rawPhone.length >= 10 ? rawPhone.slice(0, 15) : "13463591511",
             email: patientInput.email || undefined,
             address_line_1: patientInput.address_line_1 || patientInput.address || "123 Medical Way",
             city: patientInput.city || "Wah Cantt",
             state: (patientInput.state || "NY").toUpperCase().slice(0, 2),
             zip_code: patientInput.zip_code || patientInput.zip || "10001",
             insurance_provider: patientInput.insurance_provider || patientInput.insurance || "Standard",
-            emergency_contact_phone: rawEmergencyPhone.length >= 10 ? rawEmergencyPhone.slice(0, 11) : "03009876543"
+            emergency_contact_phone: rawEmergencyPhone.length >= 10 ? rawEmergencyPhone.slice(0, 15) : "13463591511"
         };
 
         // Validate normalized input using Zod patientSchema

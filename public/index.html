@@ -6,6 +6,7 @@
   <title>MediFlow - Voice AI Patient Registration</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vapi-ai/web@latest/dist/vapi.js"></script>
 </head>
 <body>
   <div id="app-container">
@@ -117,7 +118,7 @@
                     <i data-lucide="users"></i>
                     <span>Total Patients</span>
                   </div>
-                  <div class="stat-value" id="stat-total">1,284</div>
+                  <div class="stat-value" id="stat-total">0</div>
                 </div>
 
                 <div class="stat-card">
@@ -125,7 +126,7 @@
                     <i data-lucide="calendar"></i>
                     <span>Today</span>
                   </div>
-                  <div class="stat-value" id="stat-today">24</div>
+                  <div class="stat-value" id="stat-today">0</div>
                 </div>
 
                 <div class="stat-card border-orange">
@@ -133,7 +134,7 @@
                     <i data-lucide="clock"></i>
                     <span>Pending</span>
                   </div>
-                  <div class="stat-value" id="stat-pending">8</div>
+                  <div class="stat-value" id="stat-pending">0</div>
                 </div>
 
                 <div class="stat-card border-blue">
@@ -141,7 +142,7 @@
                     <i data-lucide="radio"></i>
                     <span>Active Sessions</span>
                   </div>
-                  <div class="stat-value" id="stat-active">2</div>
+                  <div class="stat-value" id="stat-active">0</div>
                 </div>
               </div>
 
@@ -155,44 +156,8 @@
               </div>
 
               <div class="activity-list">
-                <div class="activity-item">
-                  <div class="activity-icon-wrap blue">
-                    <i data-lucide="mic"></i>
-                  </div>
-                  <div class="activity-details">
-                    <span class="activity-text">John Doe registered via Voice</span>
-                    <span class="activity-meta">2 mins ago • Intake Module</span>
-                  </div>
-                </div>
-
-                <div class="activity-item">
-                  <div class="activity-icon-wrap orange">
-                    <i data-lucide="message-square"></i>
-                  </div>
-                  <div class="activity-details">
-                    <span class="activity-text">Sarah Smith registration pending review</span>
-                    <span class="activity-meta">15 mins ago • Requires Signature</span>
-                  </div>
-                </div>
-
-                <div class="activity-item">
-                  <div class="activity-icon-wrap gray">
-                    <i data-lucide="file-text"></i>
-                  </div>
-                  <div class="activity-details">
-                    <span class="activity-text">Manual entry created for Robert Johnson</span>
-                    <span class="activity-meta">1 hr ago • Front Desk</span>
-                  </div>
-                </div>
-
-                <div class="activity-item">
-                  <div class="activity-icon-wrap blue">
-                    <i data-lucide="mic"></i>
-                  </div>
-                  <div class="activity-details">
-                    <span class="activity-text">Emily Davis registered via Voice</span>
-                    <span class="activity-meta">2 hrs ago • Intake Module</span>
-                  </div>
+                <div style="font-size: 12px; color: var(--text-muted); padding: 12px 0;">
+                  No recent activity recorded yet.
                 </div>
               </div>
             </div>

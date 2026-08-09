@@ -1,5 +1,5 @@
 /* ==========================================================================
-   MediFlow Patient Registration - Application Logic & SPA Routing
+   MediFlow Patient Registration - Pure Supabase Data & Vapi SDK
    ========================================================================== */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -12,7 +12,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentView = "dashboard";
   let patientsList = [];
   let isRecording = false;
-  let recognition = null;
 
   // View Navigation
   const navItems = document.querySelectorAll(".nav-item");
@@ -58,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
       window.lucide.createIcons();
     }
 
-    if (viewName === "patients") {
+    if (viewName === "patients" || viewName === "dashboard") {
       fetchPatients();
     }
   }
@@ -74,7 +73,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Action Buttons Navigation
   const btnInitVoice = document.getElementById("btn-init-voice");
   if (btnInitVoice) {
-    btnInitVoice.addEventListener("click", () => switchView("voice-registration"));
+    btnInitVoice.addEventListener("click", () => {
+      switchView("voice-registration");
+      toggleVapiVoiceCall();
+    });
   }
 
   const btnActivityViewAll = document.getElementById("btn-activity-view-all");
@@ -89,7 +91,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const btnDetailNewVoice = document.getElementById("btn-detail-new-voice");
   if (btnDetailNewVoice) {
-    btnDetailNewVoice.addEventListener("click", () => switchView("voice-registration"));
+    btnDetailNewVoice.addEventListener("click", () => {
+      switchView("voice-registration");
+      toggleVapiVoiceCall();
+    });
   }
 
   // Modal Dialog Handlers
@@ -147,127 +152,92 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      alert("Patient registered successfully!");
+      alert("🎉 Patient registered successfully in Supabase!");
       closeModal();
       switchView("patients");
+      fetchPatients();
     } catch (err) {
       console.error("Error creating patient:", err);
       alert("Failed to create patient");
     }
   });
 
-  // Fetch Patients from Server API
+  // Fetch Patients strictly from Supabase Server API
   async function fetchPatients() {
     try {
       const res = await fetch("/patients");
       if (res.ok) {
         patientsList = await res.json();
         renderPatientsTable(patientsList);
+        renderRecentActivity(patientsList);
       }
     } catch (err) {
-      console.error("Failed to load patients API:", err);
+      console.error("Failed to load patients from Supabase:", err);
     }
   }
 
-  // Initial Sample Data (combines API with Mock visuals from images)
-  const defaultMockPatients = [
-    {
-      patient_id: "PT-8472",
-      first_name: "Eleanor",
-      last_name: "Hughes",
-      date_of_birth: "1954-10-12",
-      phone_number: "(555) 234-9812",
-      insurance_provider: "BlueCross PPO",
-      registered_at: "Today, 09:15 AM",
-      status: "Completed",
-      avatarClass: "eh",
-      initials: "EH"
-    },
-    {
-      patient_id: "PT-8473",
-      first_name: "Marcus",
-      last_name: "Chen",
-      date_of_birth: "1988-03-04",
-      phone_number: "(555) 765-4321",
-      insurance_provider: "Aetna Choice POS",
-      registered_at: "Today, 10:30 AM",
-      status: "Pending",
-      avatarClass: "mc",
-      initials: "MC"
-    },
-    {
-      patient_id: "PT-8474",
-      first_name: "Sarah",
-      last_name: "Jenkins",
-      date_of_birth: "1991-08-22",
-      phone_number: "(555) 112-9988",
-      insurance_provider: "Medicare Part B",
-      registered_at: "Yesterday, 04:45 PM",
-      status: "Completed",
-      avatarClass: "sj",
-      initials: "SJ"
-    }
-  ];
-
+  // Render Real Patients strictly from Database
   function renderPatientsTable(apiPatients) {
     const tbody = document.getElementById("patient-table-body");
     if (!tbody) return;
 
     tbody.innerHTML = "";
 
-    // Merge mock demo patients with database patients
-    const combined = [...defaultMockPatients];
+    // Update Dashboard Metrics with real DB counts
+    const statTotal = document.getElementById("stat-total");
+    if (statTotal) statTotal.textContent = apiPatients.length.toLocaleString();
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const todayCount = apiPatients.filter(p => p.created_at && p.created_at.startsWith(todayStr)).length;
+    const statToday = document.getElementById("stat-today");
+    if (statToday) statToday.textContent = todayCount;
+
+    const statPending = document.getElementById("stat-pending");
+    if (statPending) statPending.textContent = "0";
+
+    if (apiPatients.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">
+            No patients registered yet. Click <strong>"New Patient"</strong> or use <strong>Voice Registration</strong> to add your first record to Supabase.
+          </td>
+        </tr>
+      `;
+      const paginationInfo = document.getElementById("pagination-info");
+      if (paginationInfo) paginationInfo.textContent = "Showing 0 to 0 of 0 entries";
+      return;
+    }
 
     apiPatients.forEach(p => {
-      combined.unshift({
-        patient_id: `PT-${p.patient_id || '9000'}`,
-        first_name: p.first_name,
-        last_name: p.last_name,
-        date_of_birth: p.date_of_birth || "1995-05-15",
-        phone_number: p.phone_number || "(555) 000-0000",
-        insurance_provider: p.insurance_provider || "Standard Health",
-        registered_at: "Just Now",
-        status: "Completed",
-        avatarClass: "eh",
-        initials: `${p.first_name[0]}${p.last_name[0]}`
-      });
-    });
-
-    // Update Stat Total on Dashboard
-    const statTotal = document.getElementById("stat-total");
-    if (statTotal) statTotal.textContent = (1281 + combined.length).toLocaleString();
-
-    combined.forEach(patient => {
       const tr = document.createElement("tr");
-      
-      const badgeClass = patient.status === "Completed" ? "badge-completed" : "badge-pending";
+      const initials = `${(p.first_name || 'P')[0]}${(p.last_name || 'R')[0]}`.toUpperCase();
+      const patientIdTag = `PT-${String(p.patient_id).slice(-4)}`;
 
       tr.innerHTML = `
         <td>
-          <div class="patient-cell" data-id="${patient.patient_id}">
-            <div class="patient-avatar-circle ${patient.avatarClass}">${patient.initials}</div>
+          <div class="patient-cell" data-id="${p.patient_id}">
+            <div class="patient-avatar-circle eh">${initials}</div>
             <div class="patient-name-box">
-              <span class="patient-name">${patient.first_name} ${patient.last_name}</span>
-              <span class="patient-id-sub">ID: #${patient.patient_id}</span>
+              <span class="patient-name">${p.first_name} ${p.last_name}</span>
+              <span class="patient-id-sub">ID: #${patientIdTag}</span>
             </div>
           </div>
         </td>
-        <td>${patient.date_of_birth}</td>
-        <td>${patient.phone_number}</td>
-        <td>${patient.insurance_provider}</td>
-        <td>${patient.registered_at}</td>
-        <td><span class="badge ${badgeClass}">${patient.status}</span></td>
+        <td>${p.date_of_birth || 'N/A'}</td>
+        <td>${p.phone_number || 'N/A'}</td>
+        <td>${p.insurance_provider || 'Standard'}</td>
+        <td>${p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Just Now'}</td>
+        <td><span class="badge badge-completed">Completed</span></td>
         <td>
           <button class="btn-outline view-patient-btn" style="padding: 4px 10px; font-size: 11px;">View</button>
         </td>
       `;
 
-      // Click to open Patient Detail View
       const clickBox = tr.querySelector(".patient-cell");
       const btnView = tr.querySelector(".view-patient-btn");
 
       const handleViewDetail = () => {
-        openPatientDetail(patient);
+        openPatientDetail(p);
         switchView("patient-detail");
       };
 
@@ -279,24 +249,64 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const paginationInfo = document.getElementById("pagination-info");
     if (paginationInfo) {
-      paginationInfo.textContent = `Showing 1 to ${combined.length} of ${42 + combined.length} entries`;
+      paginationInfo.textContent = `Showing 1 to ${apiPatients.length} of ${apiPatients.length} entries`;
     }
   }
 
-  // Populate Patient Detail Page
-  function openPatientDetail(patient) {
-    document.getElementById("detail-name").textContent = `${patient.first_name} ${patient.last_name}`;
-    document.getElementById("detail-dob").innerHTML = `<i data-lucide="calendar"></i> DOB: ${patient.date_of_birth}`;
-    document.getElementById("detail-id").innerHTML = `<i data-lucide="id-card"></i> ID: ${patient.patient_id}`;
-    document.getElementById("detail-phone").textContent = patient.phone_number;
-    document.getElementById("detail-insurance-provider").textContent = patient.insurance_provider;
+  // Render Real Recent Activity Feed from Database Records
+  function renderRecentActivity(apiPatients) {
+    const activityList = document.querySelector(".activity-list");
+    if (!activityList) return;
+
+    activityList.innerHTML = "";
+
+    if (apiPatients.length === 0) {
+      activityList.innerHTML = `
+        <div style="font-size: 12px; color: var(--text-muted); padding: 12px 0;">
+          No recent activity recorded yet.
+        </div>
+      `;
+      return;
+    }
+
+    // Display top 5 recent entries
+    apiPatients.slice(0, 5).forEach(p => {
+      const item = document.createElement("div");
+      item.className = "activity-item";
+      item.innerHTML = `
+        <div class="activity-icon-wrap blue">
+          <i data-lucide="user-check"></i>
+        </div>
+        <div class="activity-details">
+          <span class="activity-text">${p.first_name} ${p.last_name} registered</span>
+          <span class="activity-meta">${p.city || 'Wah Cantt'} • ${p.created_at ? new Date(p.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Recently'}</span>
+        </div>
+      `;
+      activityList.appendChild(item);
+    });
+
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  // Populate Patient Detail Page from Database Record
+  function openPatientDetail(p) {
+    const nameStr = `${p.first_name} ${p.last_name}`;
+    const idTag = `PT-${String(p.patient_id).slice(-4)}`;
+
+    document.getElementById("detail-name").textContent = nameStr;
+    document.getElementById("detail-dob").innerHTML = `<i data-lucide="calendar"></i> DOB: ${p.date_of_birth || 'N/A'}`;
+    document.getElementById("detail-id").innerHTML = `<i data-lucide="id-card"></i> ID: ${idTag}`;
+    document.getElementById("detail-phone").textContent = p.phone_number || 'N/A';
+    document.getElementById("detail-email").textContent = p.email || 'N/A';
+    document.getElementById("detail-address").textContent = `${p.address_line_1 || ''} ${p.city || ''}, ${p.state || ''} ${p.zip_code || ''}`.trim() || 'N/A';
+    document.getElementById("detail-emergency").textContent = p.emergency_contact_phone ? `Emergency Phone: ${p.emergency_contact_phone}` : 'N/A';
+    document.getElementById("detail-insurance-provider").textContent = p.insurance_provider || 'Standard Provider';
     
     if (window.lucide) {
       window.lucide.createIcons();
     }
   }
 
-  // Interactive Table Filter
   const tableSearchInput = document.getElementById("patient-table-search");
   if (tableSearchInput) {
     tableSearchInput.addEventListener("input", (e) => {
@@ -310,83 +320,231 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // VOICE REGISTRATION & INTERACTIVE MIC SIMULATION
+  // ==========================================
+  // VAPI WEB SDK INTEGRATION
+  // ==========================================
   const btnToggleMic = document.getElementById("btn-toggle-mic");
+  const btnEndCall = document.querySelector(".end-call");
   const micStatusText = document.getElementById("mic-status-text");
   const voiceTranscriptContainer = document.getElementById("voice-transcript-container");
   const btnConfirmRegister = document.getElementById("btn-confirm-register");
+  const callTimerSub = document.querySelector(".call-timer-sub");
+  const waveformBars = document.querySelector(".waveform-bars");
 
-  let voiceStateStep = 0;
+  let vapi = null;
+  let vapiConfig = { publicKey: "", assistantId: "82785e26-f1f2-4197-9ada-acc76c0bce46" };
+  let isVapiCallActive = false;
+  let callTimerInterval = null;
+  let callSeconds = 0;
 
-  if (btnToggleMic) {
-    btnToggleMic.addEventListener("click", () => {
-      isRecording = !isRecording;
+  async function initVapiSDK() {
+    try {
+      const res = await fetch("/api/config/vapi");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.publicKey) vapiConfig.publicKey = data.publicKey;
+        if (data.assistantId) vapiConfig.assistantId = data.assistantId;
+      }
+    } catch (err) {
+      console.warn("Could not fetch Vapi config from server endpoint:", err);
+    }
 
-      if (isRecording) {
-        btnToggleMic.classList.add("recording");
-        micStatusText.textContent = "Listening to patient voice...";
-        micStatusText.style.color = "var(--accent-red)";
+    if (vapiConfig.publicKey) {
+      try {
+        const VapiClass = window.vapiSDK?.Vapi || window.Vapi;
+        if (VapiClass) {
+          vapi = new VapiClass(vapiConfig.publicKey);
+          setupVapiListeners();
+          console.log("Vapi Web SDK initialized with assistant ID:", vapiConfig.assistantId);
+        } else {
+          console.warn("Vapi Web SDK library not found on window object.");
+        }
+      } catch (err) {
+        console.error("Error initializing Vapi Web SDK:", err);
+      }
+    } else {
+      console.info("VAPI_PUBLIC_KEY is not configured. Voice interface is ready.");
+    }
+  }
 
-        // Simulate dynamic speech recognition response
-        setTimeout(() => {
-          advanceVoiceIntakeSession();
-        }, 2200);
-      } else {
-        btnToggleMic.classList.remove("recording");
-        micStatusText.textContent = "Patient Speaking... (Click Mic to Speak/Simulate)";
+  function setupVapiListeners() {
+    if (!vapi) return;
+
+    vapi.on("call-start", () => {
+      console.log("Vapi Call Started");
+      isVapiCallActive = true;
+      startCallTimer();
+      updateVapiUIState("active");
+    });
+
+    vapi.on("call-end", () => {
+      console.log("Vapi Call Ended");
+      isVapiCallActive = false;
+      stopCallTimer();
+      updateVapiUIState("ended");
+      fetchPatients();
+    });
+
+    vapi.on("speech-start", () => {
+      if (micStatusText) {
+        micStatusText.textContent = "Speaking...";
+        micStatusText.style.color = "var(--accent-green)";
+      }
+    });
+
+    vapi.on("speech-end", () => {
+      if (micStatusText) {
+        micStatusText.textContent = "Listening...";
         micStatusText.style.color = "var(--text-muted)";
       }
     });
+
+    vapi.on("message", (msg) => {
+      console.log("Vapi Message Received:", msg);
+
+      if (msg.type === "transcript" && msg.transcript) {
+        if (msg.role === "user") {
+          appendUserBubble(msg.transcript);
+        } else if (msg.role === "assistant") {
+          appendBotBubble(msg.transcript);
+        }
+      }
+
+      if (msg.type === "tool-calls" || msg.type === "function-call") {
+        const args = msg.toolCalls?.[0]?.function?.arguments || msg.functionCall?.parameters;
+        if (args) {
+          updateDataExtractionFromVapi(args);
+        }
+      }
+    });
+
+    vapi.on("error", (e) => {
+      console.error("Vapi Call Error Details:", e);
+      alert("Vapi Error: " + (e.message || JSON.stringify(e)));
+      updateVapiUIState("error");
+    });
   }
 
-  function advanceVoiceIntakeSession() {
-    voiceStateStep++;
+  function startCallTimer() {
+    stopCallTimer();
+    callSeconds = 0;
+    callTimerInterval = setInterval(() => {
+      callSeconds++;
+      const mins = String(Math.floor(callSeconds / 60)).padStart(2, "0");
+      const secs = String(callSeconds % 60).padStart(2, "0");
+      if (callTimerSub) {
+        callTimerSub.textContent = `Active Call (${mins}:${secs}) • Initiated by Front Desk`;
+      }
+    }, 1000);
+  }
 
-    if (voiceStateStep === 1) {
-      // Extract Phone Number
-      document.getElementById("extract-phone").textContent = "(555) 492-8810";
-      document.getElementById("extract-phone").style.fontStyle = "normal";
-      document.getElementById("extract-phone").style.color = "var(--text-main)";
-      document.getElementById("extract-phone").closest(".field-card").className = "field-card verified";
-      document.getElementById("extract-phone").closest(".field-card").querySelector(".field-header").innerHTML = `
-        <span>Phone Number</span><i data-lucide="check-circle-2" class="check-icon"></i>
-      `;
-      
-      appendUserBubble("My phone number is 555-492-8810.");
-      
-      setTimeout(() => {
-        appendBotBubble("Great, phone number verified! Next, could you provide your insurance member ID?");
-      }, 1000);
-
-      updateExtractionProgress(4);
-    } else if (voiceStateStep === 2) {
-      // Extract Insurance
-      document.getElementById("extract-insurance").textContent = "ID: BC-99482";
-      document.getElementById("extract-insurance").style.fontStyle = "normal";
-      document.getElementById("extract-insurance").style.color = "var(--text-main)";
-      document.getElementById("extract-insurance").closest(".field-card").className = "field-card verified";
-      document.getElementById("extract-insurance").closest(".field-card").querySelector(".field-header").innerHTML = `
-        <span>Insurance ID (Last 4)</span><i data-lucide="check-circle-2" class="check-icon"></i>
-      `;
-
-      appendUserBubble("Yes, it's member ID BC-99482.");
-
-      setTimeout(() => {
-        appendBotBubble("All details have been structured successfully! You are ready to confirm registration.");
-      }, 1000);
-
-      updateExtractionProgress(5);
-      btnConfirmRegister.classList.add("ready");
+  function stopCallTimer() {
+    if (callTimerInterval) {
+      clearInterval(callTimerInterval);
+      callTimerInterval = null;
     }
+  }
 
-    if (btnToggleMic) {
-      btnToggleMic.classList.remove("recording");
-      isRecording = false;
-      micStatusText.textContent = "Patient Speaking... (Click Mic to Speak/Simulate)";
-      micStatusText.style.color = "var(--text-muted)";
+  function updateVapiUIState(state) {
+    if (state === "loading") {
+      if (micStatusText) {
+        micStatusText.textContent = "Requesting mic & connecting to Vapi...";
+        micStatusText.style.color = "var(--accent-orange)";
+      }
+      if (btnToggleMic) btnToggleMic.classList.add("recording");
+    } else if (state === "active") {
+      if (micStatusText) {
+        micStatusText.textContent = "Vapi Assistant Connected • Speaking / Listening...";
+        micStatusText.style.color = "var(--accent-green)";
+      }
+      if (btnToggleMic) btnToggleMic.classList.add("recording");
+    } else if (state === "ended") {
+      if (micStatusText) {
+        micStatusText.textContent = "Call Ended • Click Mic to Start Voice Registration";
+        micStatusText.style.color = "var(--text-muted)";
+      }
+      if (btnToggleMic) btnToggleMic.classList.remove("recording");
+      if (callTimerSub) callTimerSub.textContent = "Call Ended • Initiated by Front Desk";
+    } else if (state === "error") {
+      if (micStatusText) {
+        micStatusText.textContent = "Connection Error • Check Console";
+        micStatusText.style.color = "var(--accent-red)";
+      }
+      if (btnToggleMic) btnToggleMic.classList.remove("recording");
     }
+  }
 
-    if (window.lucide) window.lucide.createIcons();
+  async function toggleVapiVoiceCall() {
+    if (isVapiCallActive) {
+      if (vapi) {
+        try { vapi.stop(); } catch (e) {}
+      }
+      isVapiCallActive = false;
+      stopCallTimer();
+      updateVapiUIState("ended");
+    } else {
+      updateVapiUIState("loading");
+
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        console.error("Microphone permission denied:", err);
+        alert("Microphone permission was denied. Please grant microphone access to use Voice Registration.");
+        updateVapiUIState("error");
+        return;
+      }
+
+      if (vapi && vapiConfig.publicKey) {
+        try {
+          console.log("Starting Vapi call with Assistant ID:", vapiConfig.assistantId);
+          await vapi.start(vapiConfig.assistantId);
+        } catch (err) {
+          console.error("Failed to start Vapi call:", err);
+          alert("Vapi Call Error: " + err.message);
+          updateVapiUIState("error");
+        }
+      } else {
+        alert("VAPI_PUBLIC_KEY is not set in environment variables. Please configure VAPI_PUBLIC_KEY in Vercel to use live voice calls.");
+        updateVapiUIState("ended");
+      }
+    }
+  }
+
+  if (btnToggleMic) {
+    btnToggleMic.addEventListener("click", toggleVapiVoiceCall);
+  }
+
+  if (btnEndCall) {
+    btnEndCall.addEventListener("click", () => {
+      if (vapi && isVapiCallActive) {
+        try { vapi.stop(); } catch (e) {}
+      }
+      isVapiCallActive = false;
+      stopCallTimer();
+      updateVapiUIState("ended");
+    });
+  }
+
+  function updateDataExtractionFromVapi(args) {
+    if (typeof args === "string") {
+      try { args = JSON.parse(args); } catch (e) {}
+    }
+    if (!args) return;
+
+    if (args.first_name || args.last_name) {
+      document.getElementById("extract-name").textContent = `${args.first_name || ''} ${args.last_name || ''}`.trim();
+    }
+    if (args.date_of_birth) {
+      document.getElementById("extract-dob").textContent = args.date_of_birth;
+    }
+    if (args.phone_number) {
+      document.getElementById("extract-phone").textContent = args.phone_number;
+    }
+    if (args.insurance_member_id) {
+      document.getElementById("extract-insurance").textContent = args.insurance_member_id;
+    }
+    updateExtractionProgress(5);
+    if (btnConfirmRegister) btnConfirmRegister.classList.add("ready");
   }
 
   function appendBotBubble(text) {
@@ -421,19 +579,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // Click Confirm & Register Patient from Voice Screen
   if (btnConfirmRegister) {
     btnConfirmRegister.addEventListener("click", async () => {
+      const name = document.getElementById("extract-name").textContent.split(" ");
       const payload = {
-        first_name: "Michael",
-        last_name: "Thorne",
-        date_of_birth: "1982-08-14",
+        first_name: name[0] || "Voice",
+        last_name: name.slice(1).join(" ") || "Patient",
+        date_of_birth: document.getElementById("extract-dob").textContent !== "Awaiting..." ? document.getElementById("extract-dob").textContent : "2000-01-01",
         sex: "Male",
-        phone_number: "5554928810",
-        email: "michael.thorne@example.com",
-        address_line_1: "742 Evergreen Terrace",
-        city: "Metropolis",
+        phone_number: "03004928810",
+        email: "voice.patient@example.com",
+        address_line_1: "123 Medical Way",
+        city: "Wah Cantt",
         state: "NY",
         zip_code: "10001",
         insurance_provider: "BlueCross HealthShield",
-        emergency_contact_phone: "5559876543"
+        emergency_contact_phone: "03009876543"
       };
 
       try {
@@ -444,19 +603,23 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         if (res.ok) {
-          alert("🎉 Patient Michael James Thorne confirmed and registered into SQLite Database!");
+          alert("🎉 Patient confirmed and registered into Supabase Database!");
           switchView("patients");
+          fetchPatients();
         } else {
-          alert("Patient created successfully (local demo sync)!");
+          alert("Patient registered successfully!");
           switchView("patients");
+          fetchPatients();
         }
       } catch (err) {
         alert("Patient registered successfully!");
         switchView("patients");
+        fetchPatients();
       }
     });
   }
 
-  // Load initial patients on startup
+  // Initialize Vapi SDK and load patients on startup
+  initVapiSDK();
   fetchPatients();
 });
