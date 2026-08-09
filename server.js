@@ -43,8 +43,8 @@ const patientSchema = z.object({
     sex: z.string().optional(),
 
     phone_number: z.string().regex(
-        /^\d{10}$/,
-        "Phone number must contain exactly 10 digits"
+        /^\d{10,11}$/,
+        "Phone number must contain 10 or 11 digits"
     ),
 
     email: z.string().email("Invalid email address").optional().or(z.literal("")),
@@ -69,8 +69,8 @@ const patientSchema = z.object({
     emergency_contact_name: z.string().optional(),
 
     emergency_contact_phone: z.string().regex(
-        /^\d{10}$/,
-        "Emergency contact phone must contain exactly 10 digits"
+        /^\d{10,11}$/,
+        "Emergency contact phone must contain 10 or 11 digits"
     )
 });
 
