@@ -218,6 +218,133 @@ app.post("/patients", async (req, res) => {
 });
 
 // ==========================================
+// VAPI TOOL WEBHOOK: CREATE PATIENT
+// POST /vapi/create-patient
+// ==========================================
+
+app.post("/vapi/create-patient", async (req, res) => {
+    try {
+        console.log("Received Vapi webhook request:", JSON.stringify(req.body, null, 2));
+
+        // Extract patient fields from Vapi Tool Call format or direct JSON body
+        let patientInput = req.body || {};
+
+        // Handle Vapi server tool-call envelope
+        if (req.body && req.body.message) {
+            const message = req.body.message;
+            if (message.type === "tool-calls" && message.toolCalls && message.toolCalls.length > 0) {
+                const toolCall = message.toolCalls[0];
+                if (toolCall.function && toolCall.function.arguments) {
+                    patientInput = typeof toolCall.function.arguments === "string"
+                        ? JSON.parse(toolCall.function.arguments)
+                        : toolCall.function.arguments;
+                }
+            } else if (message.functionCall && message.functionCall.parameters) {
+                patientInput = message.functionCall.parameters;
+            }
+        } else if (req.body && req.body.function && req.body.function.arguments) {
+            patientInput = typeof req.body.function.arguments === "string"
+                ? JSON.parse(req.body.function.arguments)
+                : req.body.function.arguments;
+        }
+
+        // Clean & normalize phone numbers
+        const rawPhone = String(patientInput.phone_number || patientInput.phone || "03001234567").replace(/\D/g, "");
+        const rawEmergencyPhone = String(patientInput.emergency_contact_phone || patientInput.emergency_phone || "03009876543").replace(/\D/g, "");
+
+        const normalizedInput = {
+            first_name: patientInput.first_name || patientInput.firstName || "Patient",
+            last_name: patientInput.last_name || patientInput.lastName || "Record",
+            date_of_birth: patientInput.date_of_birth || patientInput.dob || "2000-01-01",
+            sex: patientInput.sex || "Other",
+            phone_number: rawPhone.length >= 10 ? rawPhone.slice(0, 11) : "03001234567",
+            email: patientInput.email || undefined,
+            address_line_1: patientInput.address_line_1 || patientInput.address || "123 Medical Way",
+            city: patientInput.city || "Wah Cantt",
+            state: (patientInput.state || "NY").toUpperCase().slice(0, 2),
+            zip_code: patientInput.zip_code || patientInput.zip || "10001",
+            insurance_provider: patientInput.insurance_provider || patientInput.insurance || "Standard",
+            emergency_contact_phone: rawEmergencyPhone.length >= 10 ? rawEmergencyPhone.slice(0, 11) : "03009876543"
+        };
+
+        // Validate normalized input using Zod patientSchema
+        const validation = patientSchema.safeParse(normalizedInput);
+        if (!validation.success) {
+            console.error("Vapi patient validation failed:", validation.error.issues);
+            
+            if (req.body && req.body.message && req.body.message.type === "tool-calls") {
+                const toolCallId = req.body.message.toolCalls[0].id;
+                return res.status(200).json({
+                    results: [
+                        {
+                            toolCallId: toolCallId,
+                            result: `Validation failed: ${validation.error.issues.map(i => i.message).join(", ")}`
+                        }
+                    ]
+                });
+            }
+
+            return res.status(400).json({
+                error: "Validation failed",
+                details: validation.error.issues
+            });
+        }
+
+        // Insert into Supabase
+        const { data, error } = await supabase
+            .from("patients")
+            .insert([validation.data])
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error creating Vapi patient in Supabase:", error);
+            
+            if (req.body && req.body.message && req.body.message.type === "tool-calls") {
+                const toolCallId = req.body.message.toolCalls[0].id;
+                return res.status(200).json({
+                    results: [
+                        {
+                            toolCallId: toolCallId,
+                            result: `Database error: ${error.message}`
+                        }
+                    ]
+                });
+            }
+
+            return res.status(500).json({
+                error: "Failed to create patient",
+                details: error.message
+            });
+        }
+
+        console.log("Vapi patient registered successfully in Supabase:", data.patient_id);
+
+        // Standard Vapi tool response format
+        if (req.body && req.body.message && req.body.message.type === "tool-calls") {
+            const toolCallId = req.body.message.toolCalls[0].id;
+            return res.status(200).json({
+                results: [
+                    {
+                        toolCallId: toolCallId,
+                        result: `Patient ${data.first_name} ${data.last_name} registered successfully with ID ${data.patient_id}.`
+                    }
+                ]
+            });
+        }
+
+        res.status(201).json({
+            message: "Patient created successfully via Vapi",
+            patient: data,
+            patient_id: data.patient_id
+        });
+    } catch (err) {
+        console.error("Server error handling Vapi webhook:", err);
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+// ==========================================
 // 4. UPDATE PATIENT (Supabase)
 // PUT /patients/:id
 // ==========================================
