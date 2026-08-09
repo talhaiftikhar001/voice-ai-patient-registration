@@ -455,35 +455,7 @@
                 <div class="chat-bubble-row">
                   <div class="avatar-icon-circle bot"><i data-lucide="bot"></i></div>
                   <div class="chat-bubble bot-bubble">
-                    Hello! I'm the automated registration assistant for MediFlow Clinic. I need to collect some information to check you in today. Could you please state your full legal name and date of birth?
-                  </div>
-                </div>
-
-                <div class="chat-bubble-row user-row">
-                  <div class="avatar-icon-circle user"><i data-lucide="user"></i></div>
-                  <div class="chat-bubble user-bubble">
-                    Uh, yes. It's Michael James Thorne. Date of birth is August 14th, 1982.
-                  </div>
-                </div>
-
-                <div class="chat-bubble-row">
-                  <div class="avatar-icon-circle bot"><i data-lucide="bot"></i></div>
-                  <div class="chat-bubble bot-bubble">
-                    Thank you, Michael. Got it. And what is the primary reason for your visit today?
-                  </div>
-                </div>
-
-                <div class="chat-bubble-row user-row">
-                  <div class="avatar-icon-circle user"><i data-lucide="user"></i></div>
-                  <div class="chat-bubble user-bubble">
-                    I've been having this persistent lower back pain for about a week now, it's not going away.
-                  </div>
-                </div>
-
-                <div class="chat-bubble-row">
-                  <div class="avatar-icon-circle bot"><i data-lucide="bot"></i></div>
-                  <div class="chat-bubble bot-bubble">
-                    I'm sorry to hear that. I've noted lower back pain. Finally, can you confirm the last four digits of your insurance card on file?
+                    Hello! Click the microphone button below or dial <strong>+1 (346) 359-1511</strong> to start your live voice registration session with Vapi AI.
                   </div>
                 </div>
               </div>
@@ -499,7 +471,7 @@
                 <button class="big-mic-btn" id="btn-toggle-mic" title="Toggle Voice Capture">
                   <i data-lucide="mic"></i>
                 </button>
-                <span class="text-muted" style="font-size: 12px;" id="mic-status-text">Patient Speaking... (Click Mic to Speak/Simulate)</span>
+                <span class="text-muted" style="font-size: 12px;" id="mic-status-text">Click Mic to Start Voice Registration</span>
               </div>
             </div>
 
@@ -511,33 +483,28 @@
               </div>
 
               <div class="extraction-list">
-                <div class="field-card verified">
+                <div class="field-card waiting">
                   <div class="field-header">
                     <span>Full Legal Name</span>
-                    <i data-lucide="check-circle-2" class="check-icon"></i>
+                    <i data-lucide="hourglass" style="color: var(--text-muted);"></i>
                   </div>
-                  <div class="field-val" id="extract-name">Michael James Thorne</div>
+                  <div class="field-val text-muted" style="font-size: 13px; font-style: italic;" id="extract-name">Awaiting AI extraction...</div>
                 </div>
 
-                <div class="field-card verified">
+                <div class="field-card waiting">
                   <div class="field-header">
                     <span>Date of Birth</span>
-                    <i data-lucide="check-circle-2" class="check-icon"></i>
+                    <i data-lucide="hourglass" style="color: var(--text-muted);"></i>
                   </div>
-                  <div class="field-val" id="extract-dob">08/14/1982</div>
-                  <div class="field-sub">Age: 41</div>
+                  <div class="field-val text-muted" style="font-size: 13px; font-style: italic;" id="extract-dob">Awaiting AI extraction...</div>
                 </div>
 
-                <div class="field-card review">
+                <div class="field-card waiting">
                   <div class="field-header">
                     <span>Chief Complaint</span>
-                    <i data-lucide="alert-triangle" style="color: var(--accent-orange);"></i>
+                    <i data-lucide="hourglass" style="color: var(--text-muted);"></i>
                   </div>
-                  <div class="field-val" style="font-size: 13px;" id="extract-complaint">Persistent lower back pain (duration: ~1 week)</div>
-                  <div class="review-actions">
-                    <button class="btn-xs">Edit</button>
-                    <button class="btn-xs approve">Approve</button>
-                  </div>
+                  <div class="field-val text-muted" style="font-size: 13px; font-style: italic;" id="extract-complaint">Awaiting AI extraction...</div>
                 </div>
 
                 <div class="field-card waiting">
@@ -560,12 +527,12 @@
               <div class="extraction-footer">
                 <div class="progress-text-row">
                   <span>Registration Progress</span>
-                  <span id="extract-progress-label">3 of 5 fields</span>
+                  <span id="extract-progress-label">0 of 5 fields</span>
                 </div>
                 <div class="progress-bar-wrap">
-                  <div class="progress-bar-fill" id="extract-progress-bar" style="width: 60%; background-color: var(--primary-blue);"></div>
+                  <div class="progress-bar-fill" id="extract-progress-bar" style="width: 0%;"></div>
                 </div>
-                <button class="btn-confirm-register ready" id="btn-confirm-register">
+                <button class="btn-confirm-register" id="btn-confirm-register">
                   <i data-lucide="user-check"></i>
                   <span>Confirm & Register Patient</span>
                 </button>
