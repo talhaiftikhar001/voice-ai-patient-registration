@@ -325,7 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const callTimerSub = document.querySelector(".call-timer-sub");
 
   let vapi = null;
-  let vapiConfig = { publicKey: "", assistantId: "82785e26-f1f2-4197-9ada-acc76c0bce46" };
+  let vapiConfig = { publicKey: "12e72b37-fa3f-4bfd-8756-28c7a0a796b2", assistantId: "82785e26-f1f2-4197-9ada-acc76c0bce46" };
   let isVapiCallActive = false;
   let callTimerInterval = null;
   let callSeconds = 0;
@@ -351,7 +351,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("Could not fetch Vapi config from endpoint:", err);
     }
 
-    return "";
+    return "12e72b37-fa3f-4bfd-8756-28c7a0a796b2";
   }
 
   async function initVapiSDK() {

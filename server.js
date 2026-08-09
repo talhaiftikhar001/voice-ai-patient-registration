@@ -107,11 +107,11 @@ app.get("/test-supabase", async (req, res) => {
 });
 
 app.get("/api/config/vapi", (req, res) => {
-    const rawKey = process.env.VAPI_PUBLIC_KEY || process.env.VITE_VAPI_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || "";
+    const rawKey = process.env.VAPI_PUBLIC_KEY || process.env.VITE_VAPI_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY || "12e72b37-fa3f-4bfd-8756-28c7a0a796b2";
     const isPlaceholder = !rawKey || rawKey === "your_vapi_public_key" || rawKey.includes("your_");
     
     res.json({
-        publicKey: isPlaceholder ? "" : rawKey,
+        publicKey: isPlaceholder ? "12e72b37-fa3f-4bfd-8756-28c7a0a796b2" : rawKey,
         assistantId: process.env.VAPI_ASSISTANT_ID || "82785e26-f1f2-4197-9ada-acc76c0bce46"
     });
 });
