@@ -355,7 +355,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (VapiClass) {
           vapi = new VapiClass(vapiConfig.publicKey);
           setupVapiListeners();
-          console.log("Vapi Web SDK initialized with assistant ID:", vapiConfig.assistantId);
+          console.log("Vapi Web SDK successfully initialized with Assistant ID:", vapiConfig.assistantId);
         } else {
           console.warn("Vapi Web SDK library not found on window object.");
         }
@@ -363,7 +363,7 @@ document.addEventListener("DOMContentLoaded", () => {
         console.error("Error initializing Vapi Web SDK:", err);
       }
     } else {
-      console.info("VAPI_PUBLIC_KEY is not configured. Voice interface is ready.");
+      console.info("Vapi Public Key not yet set in environment variables.");
     }
   }
 
@@ -433,7 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const mins = String(Math.floor(callSeconds / 60)).padStart(2, "0");
       const secs = String(callSeconds % 60).padStart(2, "0");
       if (callTimerSub) {
-        callTimerSub.textContent = `Active Call (${mins}:${secs}) • Initiated by Front Desk`;
+        callTimerSub.textContent = `Active Call (${mins}:${secs}) • Direct Line: +1 (346) 359-1511`;
       }
     }, 1000);
   }
@@ -464,7 +464,7 @@ document.addEventListener("DOMContentLoaded", () => {
         micStatusText.style.color = "var(--text-muted)";
       }
       if (btnToggleMic) btnToggleMic.classList.remove("recording");
-      if (callTimerSub) callTimerSub.textContent = "Call Ended • Initiated by Front Desk";
+      if (callTimerSub) callTimerSub.textContent = "Direct Line: +1 (346) 359-1511 • Click Mic or Call to Register";
     } else if (state === "error") {
       if (micStatusText) {
         micStatusText.textContent = "Connection Error • Check Console";
@@ -485,6 +485,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       updateVapiUIState("loading");
 
+      // Check mic permission
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (err) {
@@ -494,17 +495,39 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      // Re-check or fetch config if not yet loaded
+      if (!vapiConfig.publicKey) {
+        try {
+          const res = await fetch("/api/config/vapi");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.publicKey) vapiConfig.publicKey = data.publicKey;
+            if (data.assistantId) vapiConfig.assistantId = data.assistantId;
+          }
+        } catch (e) {}
+
+        if (vapiConfig.publicKey && !vapi) {
+          const VapiClass = window.vapiSDK?.Vapi || window.Vapi;
+          if (VapiClass) {
+            vapi = new VapiClass(vapiConfig.publicKey);
+            setupVapiListeners();
+          }
+        }
+      }
+
       if (vapi && vapiConfig.publicKey) {
         try {
           console.log("Starting Vapi call with Assistant ID:", vapiConfig.assistantId);
           await vapi.start(vapiConfig.assistantId);
         } catch (err) {
           console.error("Failed to start Vapi call:", err);
-          alert("Vapi Call Error: " + err.message);
+          alert("Vapi Call Error: " + (err.message || JSON.stringify(err)));
           updateVapiUIState("error");
         }
       } else {
-        alert("VAPI_PUBLIC_KEY is not set in environment variables. Please configure VAPI_PUBLIC_KEY in Vercel to use live voice calls.");
+        const errorMsg = "VAPI_PUBLIC_KEY is not configured in Vercel Environment Variables. Please set VAPI_PUBLIC_KEY or VITE_VAPI_PUBLIC_KEY in Vercel project settings.";
+        console.error(errorMsg, { vapiConfig });
+        alert(errorMsg);
         updateVapiUIState("ended");
       }
     }
