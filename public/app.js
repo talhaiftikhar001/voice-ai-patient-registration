@@ -93,6 +93,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const btnRefreshDetail = document.getElementById("btn-refresh-detail");
+  if (btnRefreshDetail) {
+    btnRefreshDetail.addEventListener("click", () => fetchPatients());
+  }
+
   // Modal Dialog Handlers
   const patientModal = document.getElementById("patient-modal");
   const btnOpenNewPatient = document.getElementById("btn-open-new-patient");
@@ -206,25 +211,25 @@ document.addEventListener("DOMContentLoaded", () => {
     apiPatients.forEach(p => {
       const tr = document.createElement("tr");
       const initials = `${(p.first_name || 'P')[0]}${(p.last_name || 'R')[0]}`.toUpperCase();
-      const patientIdTag = `PT-${String(p.patient_id).slice(-4)}`;
+      const patientIdTag = `PT-${String(p.patient_id || '0000').slice(-6)}`;
 
       tr.innerHTML = `
         <td>
           <div class="patient-cell" data-id="${p.patient_id}">
             <div class="patient-avatar-circle eh">${initials}</div>
             <div class="patient-name-box">
-              <span class="patient-name">${p.first_name} ${p.last_name}</span>
+              <span class="patient-name">${p.first_name || ''} ${p.last_name || ''}</span>
               <span class="patient-id-sub">ID: #${patientIdTag}</span>
             </div>
           </div>
         </td>
-        <td>${p.date_of_birth || 'N/A'}</td>
-        <td>${p.phone_number || 'N/A'}</td>
-        <td>${p.insurance_provider || 'Standard'}</td>
+        <td>${p.date_of_birth || 'Not provided'}</td>
+        <td>${p.phone_number || 'Not provided'}</td>
+        <td>${p.insurance_provider || 'Not provided'}</td>
         <td>${p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Just Now'}</td>
-        <td><span class="badge badge-completed">Completed</span></td>
+        <td><span class="badge badge-completed">Registered</span></td>
         <td>
-          <button class="btn-outline view-patient-btn" style="padding: 4px 10px; font-size: 11px;">View</button>
+          <button class="btn-outline view-patient-btn" style="padding: 4px 10px; font-size: 11px;">View Details</button>
         </td>
       `;
 
@@ -272,7 +277,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <i data-lucide="user-check"></i>
         </div>
         <div class="activity-details">
-          <span class="activity-text">${p.first_name} ${p.last_name} registered</span>
+          <span class="activity-text">${p.first_name || ''} ${p.last_name || ''} registered</span>
           <span class="activity-meta">${p.city || 'Wah Cantt'} • ${p.created_at ? new Date(p.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Recently'}</span>
         </div>
       `;
@@ -284,18 +289,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Populate Patient Detail Page from Database Record
   function openPatientDetail(p) {
-    const nameStr = `${p.first_name} ${p.last_name}`;
-    const idTag = `PT-${String(p.patient_id).slice(-4)}`;
+    if (!p) return;
+
+    const firstName = p.first_name || '';
+    const lastName = p.last_name || '';
+    const nameStr = `${firstName} ${lastName}`.trim() || 'Not provided';
+    const initials = `${firstName[0] || 'P'}${lastName[0] || 'R'}`.toUpperCase();
+    const idTag = `PT-${String(p.patient_id || '0000').slice(-6)}`;
+    
+    // Header
+    const avatarEl = document.getElementById("detail-avatar-circle");
+    if (avatarEl) avatarEl.textContent = initials;
 
     document.getElementById("detail-name").textContent = nameStr;
-    document.getElementById("detail-dob").innerHTML = `<i data-lucide="calendar"></i> DOB: ${p.date_of_birth || 'N/A'}`;
+    document.getElementById("detail-full-name").textContent = nameStr;
+    document.getElementById("detail-dob").innerHTML = `<i data-lucide="calendar"></i> DOB: ${p.date_of_birth || 'Not provided'}`;
     document.getElementById("detail-id").innerHTML = `<i data-lucide="id-card"></i> ID: ${idTag}`;
-    document.getElementById("detail-phone").textContent = p.phone_number || 'N/A';
-    document.getElementById("detail-email").textContent = p.email || 'N/A';
-    document.getElementById("detail-address").textContent = `${p.address_line_1 || ''} ${p.city || ''}, ${p.state || ''} ${p.zip_code || ''}`.trim() || 'N/A';
-    document.getElementById("detail-emergency").textContent = p.emergency_contact_phone ? `Emergency Phone: ${p.emergency_contact_phone}` : 'N/A';
-    document.getElementById("detail-insurance-provider").textContent = p.insurance_provider || 'Standard Provider';
-    
+    document.getElementById("detail-status").textContent = p.deleted_at ? "Status: Archived" : "Status: Registered";
+
+    // Personal & Demographics
+    document.getElementById("detail-sex").textContent = p.sex || 'Not provided';
+    document.getElementById("detail-language").textContent = p.preferred_language || 'English';
+    document.getElementById("detail-phone").textContent = p.phone_number || 'Not provided';
+    document.getElementById("detail-email").textContent = p.email || 'Not provided';
+
+    // Address
+    const addressParts = [p.address_line_1, p.address_line_2, p.city, p.state, p.zip_code].filter(Boolean);
+    document.getElementById("detail-address").textContent = addressParts.join(", ") || 'Not provided';
+    document.getElementById("detail-city-state").textContent = [p.city, p.state].filter(Boolean).join(", ") || 'Not provided';
+
+    // Insurance
+    document.getElementById("detail-insurance-provider").textContent = p.insurance_provider || 'Not provided';
+    document.getElementById("detail-member-id").textContent = p.insurance_member_id || 'Not provided';
+
+    // Emergency Contact
+    document.getElementById("detail-emergency-name").textContent = p.emergency_contact_name || 'Not provided';
+    document.getElementById("detail-emergency").textContent = p.emergency_contact_phone || 'Not provided';
+
+    // Record Metadata
+    document.getElementById("detail-db-id").textContent = p.patient_id || '-';
+    document.getElementById("detail-registered-at").textContent = `Registered: ${p.created_at ? new Date(p.created_at).toLocaleString() : 'Just Now'}`;
+
     if (window.lucide) {
       window.lucide.createIcons();
     }
