@@ -187,9 +187,14 @@ app.post("/patients", async (req, res) => {
             });
         }
 
+        const patientData = {
+            ...result.data,
+            city: result.data.city || "Wah Cantt"
+        };
+
         const { data, error } = await supabase
             .from("patients")
-            .insert([result.data])
+            .insert([patientData])
             .select()
             .single();
 
