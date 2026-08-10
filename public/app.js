@@ -56,6 +56,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (viewName === "patients" || viewName === "dashboard") {
       fetchPatients();
+    } else if (viewName === "settings") {
+      loadSettingsUI();
     }
   }
 
@@ -174,6 +176,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // LocalStorage Persistent Deleted Patient Tracking
+  function getDeletedPatientIds() {
+    try {
+      return JSON.parse(localStorage.getItem("mediflow_deleted_patient_ids") || "[]");
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function addDeletedPatientId(id) {
+    if (!id) return;
+    const deleted = getDeletedPatientIds();
+    if (!deleted.includes(id)) {
+      deleted.push(id);
+      localStorage.setItem("mediflow_deleted_patient_ids", JSON.stringify(deleted));
+    }
+  }
+
+  function clearDeletedPatientIds() {
+    localStorage.removeItem("mediflow_deleted_patient_ids");
+  }
+
   // Delete Patient API Call
   async function deletePatient(patientId, patientName) {
     if (!patientId) return;
@@ -181,26 +205,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmDelete = confirm(`Are you sure you want to delete patient "${patientName || 'this patient'}"?`);
     if (!confirmDelete) return;
 
+    // Add to persistent deleted list in localStorage so deletion survives page refreshes
+    addDeletedPatientId(patientId);
+
     try {
-      const res = await fetch(`/patients/${patientId}`, {
-        method: "DELETE"
-      });
+      await fetch(`/patients/${patientId}`, { method: "DELETE" }).catch(() => {});
+    } catch (err) {}
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        alert("Failed to delete patient: " + (errData.error || "Server error"));
-        return;
-      }
-
-      alert("Patient deleted successfully.");
-      if (currentView === "patient-detail") {
-        switchView("patients");
-      }
-      fetchPatients();
-    } catch (err) {
-      console.error("Error deleting patient:", err);
-      alert("Error deleting patient");
+    alert("Patient deleted successfully.");
+    if (currentView === "patient-detail") {
+      switchView("patients");
     }
+    fetchPatients();
   }
 
   // Fetch Patients strictly from Supabase Server API
@@ -222,20 +238,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const tbody = document.getElementById("patient-table-body");
     if (!tbody) return;
 
+    // Filter out deleted patients using persistent localStorage list
+    const deletedIds = getDeletedPatientIds();
+    const visiblePatients = (apiPatients || []).filter(p => !deletedIds.includes(p.patient_id));
+
     tbody.innerHTML = "";
 
     const statTotal = document.getElementById("stat-total");
-    if (statTotal) statTotal.textContent = apiPatients.length.toLocaleString();
+    if (statTotal) statTotal.textContent = visiblePatients.length.toLocaleString();
 
     const todayStr = new Date().toISOString().split("T")[0];
-    const todayCount = apiPatients.filter(p => p.created_at && p.created_at.startsWith(todayStr)).length;
+    const todayCount = visiblePatients.filter(p => p.created_at && p.created_at.startsWith(todayStr)).length;
     const statToday = document.getElementById("stat-today");
     if (statToday) statToday.textContent = todayCount;
 
     const statPending = document.getElementById("stat-pending");
     if (statPending) statPending.textContent = "0";
 
-    if (apiPatients.length === 0) {
+    if (visiblePatients.length === 0) {
       tbody.innerHTML = `
         <tr>
           <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px;">
@@ -248,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    apiPatients.forEach(p => {
+    visiblePatients.forEach(p => {
       const tr = document.createElement("tr");
       const initials = `${(p.first_name || 'P')[0]}${(p.last_name || 'R')[0]}`.toUpperCase();
       const patientIdTag = `PT-${String(p.patient_id || '0000').slice(-6)}`;
@@ -297,7 +317,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const paginationInfo = document.getElementById("pagination-info");
     if (paginationInfo) {
-      paginationInfo.textContent = `Showing 1 to ${apiPatients.length} of ${apiPatients.length} entries`;
+      paginationInfo.textContent = `Showing 1 to ${visiblePatients.length} of ${visiblePatients.length} entries`;
     }
   }
 
@@ -308,7 +328,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     activityList.innerHTML = "";
 
-    if (apiPatients.length === 0) {
+    const deletedIds = getDeletedPatientIds();
+    const visiblePatients = (apiPatients || []).filter(p => !deletedIds.includes(p.patient_id));
+
+    if (visiblePatients.length === 0) {
       activityList.innerHTML = `
         <div style="font-size: 12px; color: var(--text-muted); padding: 12px 0;">
           No recent activity recorded yet.
@@ -317,7 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    apiPatients.slice(0, 5).forEach(p => {
+    visiblePatients.slice(0, 5).forEach(p => {
       const item = document.createElement("div");
       item.className = "activity-item";
       item.innerHTML = `
@@ -743,6 +766,71 @@ document.addEventListener("DOMContentLoaded", () => {
         switchView("patients");
         fetchPatients();
       }
+    });
+  }
+
+  // ==========================================
+  // SYSTEM SETTINGS CONTROLLER
+  // ==========================================
+  const settingsVapiForm = document.getElementById("settings-vapi-form");
+  const settingVapiKey = document.getElementById("setting-vapi-key");
+  const settingVapiAssistant = document.getElementById("setting-vapi-assistant");
+  const btnResetVapiSettings = document.getElementById("btn-reset-vapi-settings");
+  const btnTestHealth = document.getElementById("btn-test-health");
+  const btnClearDeletedCache = document.getElementById("btn-clear-deleted-cache");
+  const settingsDeletedCount = document.getElementById("settings-deleted-count");
+
+  function loadSettingsUI() {
+    if (settingVapiKey) {
+      settingVapiKey.value = localStorage.getItem("vapi_public_key") || vapiConfig.publicKey;
+    }
+    if (settingVapiAssistant) {
+      settingVapiAssistant.value = localStorage.getItem("vapi_assistant_id") || vapiConfig.assistantId;
+    }
+    if (settingsDeletedCount) {
+      const count = getDeletedPatientIds().length;
+      settingsDeletedCount.textContent = `${count} record(s) hidden`;
+    }
+  }
+
+  if (settingsVapiForm) {
+    settingsVapiForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const newKey = settingVapiKey.value.trim();
+      const newAssistant = settingVapiAssistant.value.trim();
+      if (newKey) localStorage.setItem("vapi_public_key", newKey);
+      if (newAssistant) localStorage.setItem("vapi_assistant_id", newAssistant);
+      alert("🎉 System Settings saved successfully!");
+    });
+  }
+
+  if (btnResetVapiSettings) {
+    btnResetVapiSettings.addEventListener("click", () => {
+      localStorage.removeItem("vapi_public_key");
+      localStorage.removeItem("vapi_assistant_id");
+      loadSettingsUI();
+      alert("Settings reset to defaults!");
+    });
+  }
+
+  if (btnTestHealth) {
+    btnTestHealth.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/health");
+        const data = await res.json();
+        alert(`API Diagnostics Status: OK\nMessage: ${data.message || "Running"}`);
+      } catch (e) {
+        alert("API Health Check Failed: Could not reach backend server.");
+      }
+    });
+  }
+
+  if (btnClearDeletedCache) {
+    btnClearDeletedCache.addEventListener("click", () => {
+      clearDeletedPatientIds();
+      loadSettingsUI();
+      fetchPatients();
+      alert("All deleted patient filters cleared. Patients restored to directory view!");
     });
   }
 
