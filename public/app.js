@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentView = "dashboard";
   let patientsList = [];
   let isRecording = false;
+  let activePatient = null;
 
   // View Navigation
   const navItems = document.querySelectorAll(".nav-item");
@@ -98,6 +99,16 @@ document.addEventListener("DOMContentLoaded", () => {
     btnRefreshDetail.addEventListener("click", () => fetchPatients());
   }
 
+  const btnDeletePatientDetail = document.getElementById("btn-delete-patient-detail");
+  if (btnDeletePatientDetail) {
+    btnDeletePatientDetail.addEventListener("click", () => {
+      if (activePatient && activePatient.patient_id) {
+        const fullName = `${activePatient.first_name || ''} ${activePatient.last_name || ''}`.trim();
+        deletePatient(activePatient.patient_id, fullName);
+      }
+    });
+  }
+
   // Modal Dialog Handlers
   const patientModal = document.getElementById("patient-modal");
   const btnOpenNewPatient = document.getElementById("btn-open-new-patient");
@@ -162,6 +173,35 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Failed to create patient");
     }
   });
+
+  // Delete Patient API Call
+  async function deletePatient(patientId, patientName) {
+    if (!patientId) return;
+
+    const confirmDelete = confirm(`Are you sure you want to delete patient "${patientName || 'this patient'}"?`);
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`/patients/${patientId}`, {
+        method: "DELETE"
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        alert("Failed to delete patient: " + (errData.error || "Server error"));
+        return;
+      }
+
+      alert("Patient deleted successfully.");
+      if (currentView === "patient-detail") {
+        switchView("patients");
+      }
+      fetchPatients();
+    } catch (err) {
+      console.error("Error deleting patient:", err);
+      alert("Error deleting patient");
+    }
+  }
 
   // Fetch Patients strictly from Supabase Server API
   async function fetchPatients() {
@@ -229,12 +269,16 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Just Now'}</td>
         <td><span class="badge badge-completed">Registered</span></td>
         <td>
-          <button class="btn-outline view-patient-btn" style="padding: 4px 10px; font-size: 11px;">View Details</button>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn-outline view-patient-btn" style="padding: 4px 10px; font-size: 11px;">View Details</button>
+            <button class="btn-outline-danger delete-patient-btn" style="padding: 4px 10px; font-size: 11px;">Delete</button>
+          </div>
         </td>
       `;
 
       const clickBox = tr.querySelector(".patient-cell");
       const btnView = tr.querySelector(".view-patient-btn");
+      const btnDelete = tr.querySelector(".delete-patient-btn");
 
       const handleViewDetail = () => {
         openPatientDetail(p);
@@ -243,6 +287,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       clickBox.addEventListener("click", handleViewDetail);
       btnView.addEventListener("click", handleViewDetail);
+      btnDelete.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deletePatient(p.patient_id, `${p.first_name || ''} ${p.last_name || ''}`.trim());
+      });
 
       tbody.appendChild(tr);
     });
@@ -290,6 +338,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Populate Patient Detail Page from Database Record
   function openPatientDetail(p) {
     if (!p) return;
+    activePatient = p;
 
     const firstName = p.first_name || '';
     const lastName = p.last_name || '';

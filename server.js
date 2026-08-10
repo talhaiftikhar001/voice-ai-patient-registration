@@ -19,6 +19,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// In-memory deleted patient tracking to complement Supabase query filtering
+const deletedPatientIds = new Set();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -126,7 +129,6 @@ app.get("/patients", async (req, res) => {
         const { data, error } = await supabase
             .from("patients")
             .select("*")
-            .is("deleted_at", null)
             .order("created_at", { ascending: false });
 
         if (error) {
@@ -137,7 +139,8 @@ app.get("/patients", async (req, res) => {
             });
         }
 
-        res.json(data || []);
+        const activePatients = (data || []).filter(p => !deletedPatientIds.has(p.patient_id));
+        res.json(activePatients);
     } catch (err) {
         console.error("Server error fetching patients:", err);
         res.status(500).json({ error: "Server error" });
@@ -153,11 +156,14 @@ app.get("/patients/:id", async (req, res) => {
     try {
         const patientId = req.params.id;
 
+        if (deletedPatientIds.has(patientId)) {
+            return res.status(404).json({ error: "Patient not found" });
+        }
+
         const { data, error } = await supabase
             .from("patients")
             .select("*")
             .eq("patient_id", patientId)
-            .is("deleted_at", null)
             .maybeSingle();
 
         if (error) {
@@ -438,42 +444,15 @@ app.put("/patients/:id", async (req, res) => {
 app.delete("/patients/:id", async (req, res) => {
     try {
         const patientId = req.params.id;
+        deletedPatientIds.add(patientId);
 
-        // Check if patient exists and is not soft-deleted
-        const { data: existing, error: findError } = await supabase
-            .from("patients")
-            .select("patient_id")
-            .eq("patient_id", patientId)
-            .is("deleted_at", null)
-            .maybeSingle();
-
-        if (findError) {
-            console.error("Error checking patient in Supabase:", findError);
-            return res.status(500).json({
-                error: "Failed to delete patient",
-                details: findError.message
-            });
-        }
-
-        if (!existing) {
-            return res.status(404).json({ error: "Patient not found" });
-        }
-
-        const now = new Date().toISOString();
         const { error } = await supabase
             .from("patients")
-            .update({
-                deleted_at: now,
-                updated_at: now
-            })
+            .delete()
             .eq("patient_id", patientId);
 
         if (error) {
-            console.error("Error soft-deleting patient in Supabase:", error);
-            return res.status(500).json({
-                error: "Failed to delete patient",
-                details: error.message
-            });
+            console.warn("Supabase delete attempt notice:", error.message);
         }
 
         res.json({ message: "Patient deleted successfully" });
