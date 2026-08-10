@@ -772,61 +772,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================================
   // SYSTEM SETTINGS CONTROLLER
   // ==========================================
-  const settingsVapiForm = document.getElementById("settings-vapi-form");
-  const settingVapiKey = document.getElementById("setting-vapi-key");
-  const settingVapiAssistant = document.getElementById("setting-vapi-assistant");
-  const btnResetVapiSettings = document.getElementById("btn-reset-vapi-settings");
   const btnTestHealth = document.getElementById("btn-test-health");
   const btnClearDeletedCache = document.getElementById("btn-clear-deleted-cache");
   const settingsDeletedCount = document.getElementById("settings-deleted-count");
 
   function loadSettingsUI() {
-    if (settingVapiKey) {
-      settingVapiKey.value = localStorage.getItem("vapi_public_key") || vapiConfig.publicKey;
-    }
-    if (settingVapiAssistant) {
-      settingVapiAssistant.value = localStorage.getItem("vapi_assistant_id") || vapiConfig.assistantId;
-    }
     if (settingsDeletedCount) {
       const count = getDeletedPatientIds().length;
       settingsDeletedCount.textContent = `${count} record(s) hidden`;
     }
-  }
-
-  // Toggle show/hide for API key fields
-  document.querySelectorAll(".toggle-key-visibility").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const targetId = btn.getAttribute("data-target");
-      const input = document.getElementById(targetId);
-      if (!input) return;
-      const isHidden = input.type === "password";
-      input.type = isHidden ? "text" : "password";
-      const icon = btn.querySelector("svg, i");
-      if (icon) {
-        icon.setAttribute("data-lucide", isHidden ? "eye-off" : "eye");
-        if (window.lucide) window.lucide.createIcons();
-      }
-    });
-  });
-
-  if (settingsVapiForm) {
-    settingsVapiForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const newKey = settingVapiKey.value.trim();
-      const newAssistant = settingVapiAssistant.value.trim();
-      if (newKey) localStorage.setItem("vapi_public_key", newKey);
-      if (newAssistant) localStorage.setItem("vapi_assistant_id", newAssistant);
-      alert("🎉 System Settings saved successfully!");
-    });
-  }
-
-  if (btnResetVapiSettings) {
-    btnResetVapiSettings.addEventListener("click", () => {
-      localStorage.removeItem("vapi_public_key");
-      localStorage.removeItem("vapi_assistant_id");
-      loadSettingsUI();
-      alert("Settings reset to defaults!");
-    });
   }
 
   if (btnTestHealth) {
