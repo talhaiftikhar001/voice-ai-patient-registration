@@ -538,11 +538,21 @@
                 <form id="settings-vapi-form" style="padding: 16px 0 0 0;">
                   <div class="form-group" style="margin-bottom: 16px;">
                     <label style="display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">Vapi Public Key</label>
-                    <input type="text" id="setting-vapi-key" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-light); border-radius: var(--radius-md); font-family: monospace; font-size: 13px;" placeholder="12e72b37-fa3f-4bfd-8756-28c7a0a796b2">
+                    <div style="position: relative;">
+                      <input type="password" id="setting-vapi-key" style="width: 100%; padding: 10px 40px 10px 14px; border: 1px solid var(--border-light); border-radius: var(--radius-md); font-family: monospace; font-size: 13px;" placeholder="••••••••••••••••••••">
+                      <button type="button" class="toggle-key-visibility" data-target="setting-vapi-key" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;" title="Show/Hide Key">
+                        <i data-lucide="eye"></i>
+                      </button>
+                    </div>
                   </div>
                   <div class="form-group" style="margin-bottom: 18px;">
                     <label style="display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px;">Vapi Assistant ID</label>
-                    <input type="text" id="setting-vapi-assistant" style="width: 100%; padding: 10px 14px; border: 1px solid var(--border-light); border-radius: var(--radius-md); font-family: monospace; font-size: 13px;" placeholder="82785e26-f1f2-4197-9ada-acc76c0bce46">
+                    <div style="position: relative;">
+                      <input type="password" id="setting-vapi-assistant" style="width: 100%; padding: 10px 40px 10px 14px; border: 1px solid var(--border-light); border-radius: var(--radius-md); font-family: monospace; font-size: 13px;" placeholder="••••••••••••••••••••">
+                      <button type="button" class="toggle-key-visibility" data-target="setting-vapi-assistant" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px;" title="Show/Hide Key">
+                        <i data-lucide="eye"></i>
+                      </button>
+                    </div>
                   </div>
                   <div style="display: flex; gap: 12px; align-items: center;">
                     <button type="submit" class="btn-primary" style="padding: 10px 18px; font-size: 13px;">
@@ -678,6 +688,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=7.0.0"></script>
+  <script src="app.js?v=8.0.0"></script>
 </body>
 </html>

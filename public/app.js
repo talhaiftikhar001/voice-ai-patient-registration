@@ -793,6 +793,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Toggle show/hide for API key fields
+  document.querySelectorAll(".toggle-key-visibility").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.getAttribute("data-target");
+      const input = document.getElementById(targetId);
+      if (!input) return;
+      const isHidden = input.type === "password";
+      input.type = isHidden ? "text" : "password";
+      const icon = btn.querySelector("svg, i");
+      if (icon) {
+        icon.setAttribute("data-lucide", isHidden ? "eye-off" : "eye");
+        if (window.lucide) window.lucide.createIcons();
+      }
+    });
+  });
+
   if (settingsVapiForm) {
     settingsVapiForm.addEventListener("submit", (e) => {
       e.preventDefault();
